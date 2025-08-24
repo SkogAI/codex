@@ -1,44 +1,59 @@
+use crossterm::event::KeyCode;
+use crossterm::event::KeyEvent;
 use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
 use ratatui::widgets::WidgetRef;
 
 use crate::app_event_sender::AppEventSender;
+use crate::bottom_pane::BottomPane;
 use crate::status_indicator_widget::StatusIndicatorWidget;
+use crate::tui::FrameRequester;
 
 use super::BottomPaneView;
-use super::bottom_pane_view::ConditionalUpdate;
 
 pub(crate) struct StatusIndicatorView {
     view: StatusIndicatorWidget,
 }
 
 impl StatusIndicatorView {
-    pub fn new(app_event_tx: AppEventSender, height: u16) -> Self {
+    pub fn new(app_event_tx: AppEventSender, frame_requester: FrameRequester) -> Self {
         Self {
-            view: StatusIndicatorWidget::new(app_event_tx, height),
+            view: StatusIndicatorWidget::new(app_event_tx, frame_requester),
         }
     }
 
     pub fn update_text(&mut self, text: String) {
         self.view.update_text(text);
     }
+
+    pub fn update_header(&mut self, header: String) {
+        self.view.update_header(header);
+    }
 }
 
-impl<'a> BottomPaneView<'a> for StatusIndicatorView {
-    fn update_status_text(&mut self, text: String) -> ConditionalUpdate {
-        self.update_text(text);
-        ConditionalUpdate::NeedsRedraw
+impl BottomPaneView for StatusIndicatorView {
+    fn update_status_header(&mut self, header: String) {
+        self.update_header(header);
     }
 
     fn should_hide_when_task_is_done(&mut self) -> bool {
         true
     }
 
-    fn calculate_required_height(&self, _area: &Rect) -> u16 {
-        self.view.get_height()
+    fn desired_height(&self, width: u16) -> u16 {
+        self.view.desired_height(width)
     }
 
-    fn render(&self, area: Rect, buf: &mut Buffer) {
+    fn render(&self, area: ratatui::layout::Rect, buf: &mut Buffer) {
         self.view.render_ref(area, buf);
+    }
+
+    fn handle_key_event(&mut self, _pane: &mut BottomPane, key_event: KeyEvent) {
+        if key_event.code == KeyCode::Esc {
+            self.view.interrupt();
+        }
+    }
+
+    fn update_status_text(&mut self, text: String) {
+        self.update_text(text);
     }
 }

@@ -1,19 +1,20 @@
 use codex_core::protocol::Event;
-use crossterm::event::KeyEvent;
+use codex_file_search::FileMatch;
+use ratatui::text::Line;
 
-use crate::slash_command::SlashCommand;
+use crate::history_cell::HistoryCell;
+
+use codex_core::protocol::AskForApproval;
+use codex_core::protocol::SandboxPolicy;
+use codex_core::protocol_config_types::ReasoningEffort;
 
 #[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
 pub(crate) enum AppEvent {
     CodexEvent(Event),
 
-    Redraw,
-
-    KeyEvent(KeyEvent),
-
-    /// Scroll event with a value representing the "scroll delta" as the net
-    /// scroll up/down events within a short time window.
-    Scroll(i32),
+    /// Start a new session.
+    NewSession,
 
     /// Request to exit the application gracefully.
     ExitRequest,
@@ -22,10 +23,38 @@ pub(crate) enum AppEvent {
     /// bubbling channels through layers of widgets.
     CodexOp(codex_core::protocol::Op),
 
-    /// Latest formatted log line emitted by `tracing`.
-    LatestLog(String),
+    /// Kick off an asynchronous file search for the given query (text after
+    /// the `@`). Previous searches may be cancelled by the app layer so there
+    /// is at most one in-flight search.
+    StartFileSearch(String),
 
-    /// Dispatch a recognized slash command from the UI (composer) to the app
-    /// layer so it can be handled centrally.
-    DispatchCommand(SlashCommand),
+    /// Result of a completed asynchronous file search. The `query` echoes the
+    /// original search term so the UI can decide whether the results are
+    /// still relevant.
+    FileSearchResult {
+        query: String,
+        matches: Vec<FileMatch>,
+    },
+
+    /// Result of computing a `/diff` command.
+    DiffResult(String),
+
+    InsertHistoryLines(Vec<Line<'static>>),
+    InsertHistoryCell(Box<dyn HistoryCell>),
+
+    StartCommitAnimation,
+    StopCommitAnimation,
+    CommitTick,
+
+    /// Update the current reasoning effort in the running app and widget.
+    UpdateReasoningEffort(ReasoningEffort),
+
+    /// Update the current model slug in the running app and widget.
+    UpdateModel(String),
+
+    /// Update the current approval policy in the running app and widget.
+    UpdateAskForApprovalPolicy(AskForApproval),
+
+    /// Update the current sandbox policy in the running app and widget.
+    UpdateSandboxPolicy(SandboxPolicy),
 }
