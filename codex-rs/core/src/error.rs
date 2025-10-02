@@ -1,7 +1,7 @@
 use crate::exec::ExecToolCallOutput;
 use crate::token_data::KnownPlan;
 use crate::token_data::PlanType;
-use codex_protocol::mcp_protocol::ConversationId;
+use codex_protocol::ConversationId;
 use codex_protocol::protocol::RateLimitSnapshot;
 use reqwest::StatusCode;
 use serde_json;
@@ -76,8 +76,8 @@ pub enum CodexErr {
     Interrupted,
 
     /// Unexpected HTTP status code.
-    #[error("unexpected status {0}: {1}")]
-    UnexpectedStatus(StatusCode, String),
+    #[error("{0}")]
+    UnexpectedStatus(UnexpectedResponseError),
 
     #[error("{0}")]
     UsageLimitReached(UsageLimitReachedError),
@@ -91,8 +91,8 @@ pub enum CodexErr {
     InternalServerError,
 
     /// Retry limit exceeded.
-    #[error("exceeded retry limit, last status: {0}")]
-    RetryLimit(StatusCode),
+    #[error("{0}")]
+    RetryLimit(RetryLimitReachedError),
 
     /// Agent loop died unexpectedly
     #[error("internal error; agent loop died unexpectedly")]
@@ -136,6 +136,49 @@ pub enum CodexErr {
 }
 
 #[derive(Debug)]
+pub struct UnexpectedResponseError {
+    pub status: StatusCode,
+    pub body: String,
+    pub request_id: Option<String>,
+}
+
+impl std::fmt::Display for UnexpectedResponseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "unexpected status {}: {}{}",
+            self.status,
+            self.body,
+            self.request_id
+                .as_ref()
+                .map(|id| format!(", request id: {id}"))
+                .unwrap_or_default()
+        )
+    }
+}
+
+impl std::error::Error for UnexpectedResponseError {}
+#[derive(Debug)]
+pub struct RetryLimitReachedError {
+    pub status: StatusCode,
+    pub request_id: Option<String>,
+}
+
+impl std::fmt::Display for RetryLimitReachedError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "exceeded retry limit, last status: {}{}",
+            self.status,
+            self.request_id
+                .as_ref()
+                .map(|id| format!(", request id: {id}"))
+                .unwrap_or_default()
+        )
+    }
+}
+
+#[derive(Debug)]
 pub struct UsageLimitReachedError {
     pub(crate) plan_type: Option<PlanType>,
     pub(crate) resets_in_seconds: Option<u64>,
@@ -156,7 +199,7 @@ impl std::fmt::Display for UsageLimitReachedError {
                 )
             }
             Some(PlanType::Known(KnownPlan::Free)) => {
-                "To use Codex with your ChatGPT plan, upgrade to Plus: https://openai.com/chatgpt/pricing."
+                "You've hit your usage limit. Upgrade to Plus to continue using Codex (https://openai.com/chatgpt/pricing)."
                     .to_string()
             }
             Some(PlanType::Known(KnownPlan::Pro))
@@ -306,7 +349,7 @@ mod tests {
         };
         assert_eq!(
             err.to_string(),
-            "To use Codex with your ChatGPT plan, upgrade to Plus: https://openai.com/chatgpt/pricing."
+            "You've hit your usage limit. Upgrade to Plus to continue using Codex (https://openai.com/chatgpt/pricing)."
         );
     }
 
